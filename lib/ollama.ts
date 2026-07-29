@@ -148,13 +148,59 @@ export function extractJson<T>(raw: string): T {
 
   // Find the outermost JSON object or array
   const start = stripped.search(/[{[]/)
+  if (start === -1) {
+    throw new Error(`No JSON found in LLM response:\n${raw.slice(0, 300)}`)
+  }
+
+  const isArray = stripped[start] === '['
   const lastCurly = stripped.lastIndexOf('}')
   const lastSquare = stripped.lastIndexOf(']')
   const end = Math.max(lastCurly, lastSquare)
 
-  if (start === -1 || end === -1) {
-    throw new Error(`No JSON found in LLM response:\n${raw.slice(0, 300)}`)
+  // If we have a clean end, parse normally
+  if (end > start) {
+    try {
+      return JSON.parse(stripped.slice(start, end + 1)) as T
+    } catch {
+      // Fall through to repair attempt
+    }
   }
 
-  return JSON.parse(stripped.slice(start, end + 1)) as T
+  // Repair truncated JSON — close any open braces/brackets
+  let fragment = stripped.slice(start)
+
+  // Remove trailing incomplete key-value pair (e.g. `"key": "val` without closing quote)
+  fragment = fragment.replace(/,\s*"[^"]*":\s*"[^"]*$/, '')  // trailing incomplete string value
+  fragment = fragment.replace(/,\s*"[^"]*":\s*$/, '')          // trailing incomplete key
+  fragment = fragment.replace(/,\s*"[^"]*$/, '')               // trailing incomplete key with no colon
+
+  // Count unclosed braces and brackets
+  let openCurlies = 0
+  let openSquares = 0
+  for (const ch of fragment) {
+    if (ch === '{') openCurlies++
+    else if (ch === '}') openCurlies--
+    else if (ch === '[') openSquares++
+    else if (ch === ']') openSquares--
+  }
+
+  // Close them in reverse order
+  fragment += ']'.repeat(Math.max(0, openSquares))
+  fragment += '}'.repeat(Math.max(0, openCurlies))
+
+  // Fallback: try wrapping as array if needed
+  const candidates = [fragment]
+  if (isArray && !fragment.startsWith('[')) candidates.push(`[${fragment}]`)
+
+  for (const candidate of candidates) {
+    try {
+      return JSON.parse(candidate) as T
+    } catch {
+      // try next
+    }
+  }
+
+  throw new Error(
+    `Failed to parse JSON from LLM response (tried repair):\n${raw.slice(0, 300)}`
+  )
 }

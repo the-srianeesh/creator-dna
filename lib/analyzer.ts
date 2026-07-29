@@ -75,7 +75,7 @@ Remember: Return ONLY the JSON object. No explanation or additional text.`
 
   const raw = await chat(SYSTEM_PROMPT, userMessage, {
     temperature: 0.4, // lower temp for consistent, analytical output
-    maxTokens: 2048,
+    maxTokens: 4096,
   })
 
   return extractJson<CreatorFingerprint>(raw)
