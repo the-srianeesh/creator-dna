@@ -1,0 +1,82 @@
+import { chat, extractJson } from './ollama'
+import type { TranscriptResult, CreatorFingerprint } from '@/types'
+
+// ─── System Prompt ────────────────────────────────────────────────────────────
+
+const SYSTEM_PROMPT = `You are an expert UGC content strategist and creative director with deep knowledge of TikTok and Instagram creator culture.
+
+Your job is to analyze a set of video transcripts and metadata from a single creator and extract their unique content "fingerprint" — the repeatable stylistic patterns that make their content feel distinctly like them.
+
+Be specific and observational. Do not be generic. If a creator uses specific phrases, opening formats, or structural patterns, name them explicitly.
+
+You must respond with ONLY a valid JSON object — no explanation, no markdown, no preamble. The JSON must match this exact structure:
+
+{
+  "humor": "description of their humor style",
+  "pacing": "description of their pacing and rhythm",
+  "editingStyle": "description of their editing patterns",
+  "hookPatterns": "description of how they open videos",
+  "storytellingStructure": "description of their narrative arc",
+  "cameraAngles": "description of their visual framing tendencies",
+  "energyLevel": "description of their energy and delivery style",
+  "niche": "their content niche and topic focus",
+  "ctaStyle": "how they close videos and prompt action",
+  "vocabulary": "their word choices, phrases, slang, sentence length",
+  "emotionalTone": "the emotional register and feeling of their content",
+  "audienceInteraction": "how they address and engage their viewers"
+}`
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/**
+ * Formats transcripts + metadata into a single context block for the LLM.
+ * Caps each transcript at 600 chars to stay within context limits.
+ */
+function buildTranscriptContext(transcripts: TranscriptResult[]): string {
+  return transcripts
+    .map((t, i) => {
+      const meta = t.metadata
+      const excerpt = t.transcript.slice(0, 600)
+      const truncated = t.transcript.length > 600 ? '...[truncated]' : ''
+      return [
+        `--- Video ${i + 1} ---`,
+        `Platform: ${meta.platform}`,
+        `Title: ${meta.title}`,
+        `Duration: ${meta.duration}s`,
+        `Views: ${meta.viewCount.toLocaleString()} | Likes: ${meta.likeCount.toLocaleString()}`,
+        `Transcript: ${excerpt}${truncated}`,
+      ].join('\n')
+    })
+    .join('\n\n')
+}
+
+// ─── Main Analyzer ────────────────────────────────────────────────────────────
+
+/**
+ * Analyzes an array of transcripts from a single creator and returns
+ * their style fingerprint as a structured CreatorFingerprint object.
+ *
+ * Requires at least 1 transcript; works best with 3–8.
+ */
+export async function analyzeCreator(
+  transcripts: TranscriptResult[]
+): Promise<CreatorFingerprint> {
+  if (transcripts.length === 0) {
+    throw new Error('At least one video transcript is required for analysis.')
+  }
+
+  const context = buildTranscriptContext(transcripts)
+
+  const userMessage = `Here are ${transcripts.length} video transcript(s) from a single creator. Analyze their style and return their content fingerprint as JSON.
+
+${context}
+
+Remember: Return ONLY the JSON object. No explanation or additional text.`
+
+  const raw = await chat(SYSTEM_PROMPT, userMessage, {
+    temperature: 0.4, // lower temp for consistent, analytical output
+    maxTokens: 2048,
+  })
+
+  return extractJson<CreatorFingerprint>(raw)
+}
