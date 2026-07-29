@@ -67,7 +67,7 @@ Bootstrap the Next.js project with the correct folder structure, dependencies, a
 - Whisper is a Python CLI tool; Node calls it via `child_process.exec`
 - Ollama exposes a REST API at `localhost:11434`
 
-**Status:** [ ] pending
+**Status:** [x] done
 
 ---
 
