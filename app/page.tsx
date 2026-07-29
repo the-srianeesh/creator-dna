@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import VideoUrlInput from '@/components/VideoUrlInput'
 import FingerprintDisplay from '@/components/FingerprintDisplay'
 import BrandBriefForm from '@/components/BrandBriefForm'
@@ -29,6 +29,7 @@ const STEPS = [
 
 export default function Home() {
   const [sessionId, setSessionId] = useState<string | null>(null)
+  const sessionIdRef = useRef<string | null>(null)
   const [step, setStep] = useState(1)
   const [mode, setMode] = useState<AnalysisMode>('standard')
   const [transcripts, setTranscripts] = useState<TranscriptResult[]>([])
@@ -54,6 +55,7 @@ export default function Home() {
         .then(({ session }) => {
           if (!session) throw new Error('Session expired')
           setSessionId(stored)
+          sessionIdRef.current = stored
           setTranscripts(session.transcripts ?? [])
           setFingerprint(session.fingerprint ?? null)
           setBrief(session.brief ?? null)
@@ -76,6 +78,7 @@ export default function Home() {
     const res = await fetch('/api/session', { method: 'POST' })
     const { sessionId: id } = await res.json()
     setSessionId(id)
+    sessionIdRef.current = id
     localStorage.setItem('creatordna_session', id)
   }
 
@@ -85,17 +88,17 @@ export default function Home() {
     setTranscripts((prev) => {
       const exists = prev.find((t) => t.url === result.url)
       if (exists) return prev
-      const updated = [...prev, result]
-      // Persist to session
-      if (sessionId) {
-        fetch('/api/session', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId, transcripts: updated }),
-        })
-      }
-      return updated
+      return [...prev, result]
     })
+    // Use ref to avoid stale closure — sessionId state may not be set yet
+    const sid = sessionIdRef.current ?? sessionId
+    if (sid) {
+      fetch('/api/session', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: sid, transcript: result }),
+      })
+    }
   }
 
   async function handleAnalyze() {

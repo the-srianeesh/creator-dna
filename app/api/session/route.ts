@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createSession, readSession, setBrief, setFingerprint, setDirections } from '@/lib/session'
-import type { BrandBrief, CreatorFingerprint, ContentDirection } from '@/types'
+import { createSession, readSession, setBrief, setFingerprint, setDirections, addTranscript } from '@/lib/session'
+import type { BrandBrief, CreatorFingerprint, ContentDirection, TranscriptResult } from '@/types'
 
 // POST — create a new session
 export async function POST() {
@@ -35,15 +35,16 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PUT — update session fields (brief, fingerprint, directions)
+// PUT — update session fields (brief, fingerprint, directions, transcript)
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json()
-    const { sessionId, brief, fingerprint, directions } = body as {
+    const { sessionId, brief, fingerprint, directions, transcript } = body as {
       sessionId?: string
       brief?: BrandBrief
       fingerprint?: CreatorFingerprint
       directions?: ContentDirection[]
+      transcript?: TranscriptResult
     }
 
     if (!sessionId) {
@@ -52,6 +53,7 @@ export async function PUT(req: NextRequest) {
 
     let session = readSession(sessionId)
 
+    if (transcript) session = addTranscript(sessionId, transcript)
     if (brief) session = setBrief(sessionId, brief)
     if (fingerprint) session = setFingerprint(sessionId, fingerprint)
     if (directions) session = setDirections(sessionId, directions)
