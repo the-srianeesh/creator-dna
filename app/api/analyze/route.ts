@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { analyzeCreator } from '@/lib/analyzer'
+import { analyzeVideoVisuals } from '@/lib/vision'
 import { readSession, setFingerprint } from '@/lib/session'
 import type { TranscriptResult } from '@/types'
 
@@ -11,7 +12,6 @@ export async function POST(req: NextRequest) {
       transcripts?: TranscriptResult[]
     }
 
-    // Support passing transcripts directly OR reading from an existing session
     let toAnalyze: TranscriptResult[] = []
 
     if (transcripts && transcripts.length > 0) {
@@ -28,14 +28,37 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const fingerprint = await analyzeCreator(toAnalyze)
+    // ── Vision analysis ────────────────────────────────────────────────────
+    // Run LLaVA frame analysis on up to 2 videos to keep latency reasonable.
+    // Failures are silently skipped — visual context is additive, not required.
+    const visualSummaries = new Map<string, string>()
+    const videosToAnalyze = toAnalyze.slice(0, 2)
 
-    // Persist to session if sessionId was provided
+    await Promise.allSettled(
+      videosToAnalyze.map(async (t) => {
+        try {
+          const visual = await analyzeVideoVisuals(t.url)
+          visualSummaries.set(t.url, visual.summary)
+        } catch (e) {
+          console.warn(`[vision] skipped ${t.url}:`, (e as { message?: string })?.message)
+        }
+      })
+    )
+
+    // ── Fingerprint analysis ───────────────────────────────────────────────
+    const fingerprint = await analyzeCreator(toAnalyze, visualSummaries)
+
     if (sessionId) {
       setFingerprint(sessionId, fingerprint)
     }
 
-    return NextResponse.json({ fingerprint }, { status: 200 })
+    return NextResponse.json(
+      {
+        fingerprint,
+        visualsAnalyzed: visualSummaries.size,
+      },
+      { status: 200 }
+    )
   } catch (e: unknown) {
     const err = e as { message?: string }
     const message = err?.message ?? 'Analysis failed.'

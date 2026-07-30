@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import VideoUrlInput from '@/components/VideoUrlInput'
 import FingerprintDisplay from '@/components/FingerprintDisplay'
+import FingerprintEditor from '@/components/FingerprintEditor'
 import BrandBriefForm from '@/components/BrandBriefForm'
 import ContentDirections from '@/components/ContentDirections'
 import ChatInterface from '@/components/ChatInterface'
@@ -20,9 +21,10 @@ import type {
 const STEPS = [
   { id: 1, label: 'Add Videos' },
   { id: 2, label: 'Analyze' },
-  { id: 3, label: 'Brand Brief' },
-  { id: 4, label: 'Generate' },
-  { id: 5, label: 'Refine' },
+  { id: 3, label: 'Review DNA' },
+  { id: 4, label: 'Brand Brief' },
+  { id: 5, label: 'Generate' },
+  { id: 6, label: 'Refine' },
 ]
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -42,6 +44,8 @@ export default function Home() {
   const [analyzing, setAnalyzing] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [savingBrief, setSavingBrief] = useState(false)
+  const [savingFingerprint, setSavingFingerprint] = useState(false)
+  const [visualsAnalyzed, setVisualsAnalyzed] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
   // ─── Session init ──────────────────────────────────────────────────────────
@@ -63,8 +67,8 @@ export default function Home() {
           setChatHistory(session.chatHistory ?? [])
 
           // Restore step
-          if (session.directions?.length > 0) setStep(5)
-          else if (session.brief) setStep(4)
+          if (session.directions?.length > 0) setStep(6)
+          else if (session.brief) setStep(5)
           else if (session.fingerprint) setStep(3)
           else if (session.transcripts?.length > 0) setStep(2)
         })
@@ -112,14 +116,36 @@ export default function Home() {
         body: JSON.stringify({ sessionId }),
       })
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error ?? 'Analysis failed.')
-      setFingerprint(data.fingerprint)
-      setStep(3)
+        if (!res.ok) throw new Error(data.error ?? 'Analysis failed.')
+        setFingerprint(data.fingerprint)
+        setVisualsAnalyzed(data.visualsAnalyzed ?? 0)
+        setStep(3)
     } catch (e: unknown) {
       const err = e as { message?: string }
       setError(err?.message ?? 'Analysis failed. Please try again.')
     } finally {
       setAnalyzing(false)
+    }
+  }
+
+  async function handleFingerprintConfirm(fp: CreatorFingerprint) {
+    if (!sessionId) return
+    setSavingFingerprint(true)
+    setError(null)
+    try {
+      const res = await fetch('/api/session', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, fingerprint: fp }),
+      })
+      if (!res.ok) throw new Error('Failed to save fingerprint.')
+      setFingerprint(fp)
+      setStep(4)
+    } catch (e: unknown) {
+      const err = e as { message?: string }
+      setError(err?.message ?? 'Failed to save fingerprint.')
+    } finally {
+      setSavingFingerprint(false)
     }
   }
 
@@ -135,7 +161,7 @@ export default function Home() {
       })
       if (!res.ok) throw new Error('Failed to save brief.')
       setBrief(b)
-      setStep(4)
+      setStep(5)
     } catch (e: unknown) {
       const err = e as { message?: string }
       setError(err?.message ?? 'Failed to save brief.')
@@ -157,7 +183,7 @@ export default function Home() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Generation failed.')
       setDirections(data.directions)
-      setStep(5)
+      setStep(6)
     } catch (e: unknown) {
       const err = e as { message?: string }
       setError(err?.message ?? 'Generation failed. Please try again.')
@@ -233,39 +259,45 @@ export default function Home() {
 
         {/* Step 2 — Analyze */}
         {step === 2 && (
-          <Card title="Step 2 — Analyze Your Style" subtitle={`${transcripts.length} video${transcripts.length !== 1 ? 's' : ''} ready. The AI will extract your 12-dimension content fingerprint.`}>
-            {fingerprint ? (
-              <>
-                <FingerprintDisplay fingerprint={fingerprint} />
-                <button
-                  onClick={() => setStep(3)}
-                  className="w-full mt-6 py-3 bg-violet-600 hover:bg-violet-500 text-white font-semibold rounded-xl transition-colors"
-                >
-                  Continue to Brand Brief →
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={handleAnalyze}
-                disabled={analyzing}
-                className="w-full py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-violet-900 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors"
-              >
-                {analyzing ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Analyzing your style… this takes ~30 seconds
-                  </span>
-                ) : (
-                  '🧬 Analyze My Creator DNA'
-                )}
-              </button>
-            )}
+          <Card
+            title="Step 2 — Analyze Your Style"
+            subtitle={`${transcripts.length} video${transcripts.length !== 1 ? 's' : ''} ready. The AI will extract your 12-dimension content fingerprint using transcripts${transcripts.length > 0 ? ' and actual video frames' : ''}.`}
+          >
+            <button
+              onClick={handleAnalyze}
+              disabled={analyzing}
+              className="w-full py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-violet-900 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors"
+            >
+              {analyzing ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Analyzing transcripts + extracting video frames… ~1 minute
+                </span>
+              ) : (
+                '🧬 Analyze My Creator DNA'
+              )}
+            </button>
           </Card>
         )}
 
-        {/* Step 3 — Brand Brief */}
-        {step === 3 && (
-          <Card title="Step 3 — Brand Brief" subtitle="Tell the AI about the brand and what they want. Be specific — better brief = better content.">
+        {/* Step 3 — Review & Edit DNA */}
+        {step === 3 && fingerprint && (
+          <Card
+            title="Step 3 — Review Your Creator DNA"
+            subtitle="The AI has analyzed your style. Review each dimension and correct anything that feels off before generating content."
+          >
+            <FingerprintEditor
+              fingerprint={fingerprint}
+              onConfirm={handleFingerprintConfirm}
+              isLoading={savingFingerprint}
+              visualsAnalyzed={visualsAnalyzed}
+            />
+          </Card>
+        )}
+
+        {/* Step 4 — Brand Brief */}
+        {step === 4 && (
+          <Card title="Step 4 — Brand Brief" subtitle="Tell the AI about the brand and what they want. Be specific — better brief = better content.">
             <BrandBriefForm
               onSubmit={handleBriefSubmit}
               isLoading={savingBrief}
@@ -274,19 +306,17 @@ export default function Home() {
           </Card>
         )}
 
-        {/* Step 4 — Generate */}
-        {step === 4 && brief && (
-          <Card title="Step 4 — Generate Content Directions" subtitle={`Ready to generate 3 directions for ${brief.brandName}. Each will be written in your own voice.`}>
+        {/* Step 5 — Generate */}
+        {step === 5 && brief && (
+          <Card title="Step 5 — Generate Content Directions" subtitle={`Ready to generate 3 directions for ${brief.brandName}. Each will be written in your own voice.`}>
             <div className="space-y-3 mb-5">
               <BriefSummary brief={brief} />
-              {fingerprint && (
-                <button
-                  onClick={() => setStep(3)}
-                  className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
-                >
-                  ← Edit brief
-                </button>
-              )}
+              <button
+                onClick={() => setStep(4)}
+                className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+              >
+                ← Edit brief
+              </button>
             </div>
             <button
               onClick={handleGenerate}
@@ -305,8 +335,8 @@ export default function Home() {
           </Card>
         )}
 
-        {/* Step 5 — Directions + Chat */}
-        {step === 5 && directions.length > 0 && sessionId && (
+        {/* Step 6 — Directions + Chat */}
+        {step === 6 && directions.length > 0 && sessionId && (
           <div className="space-y-8">
             <ContentDirections
               directions={directions}
@@ -331,7 +361,7 @@ export default function Home() {
 
             <div className="flex gap-3">
               <button
-                onClick={() => setStep(4)}
+                onClick={() => setStep(5)}
                 className="flex-1 py-2.5 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-zinc-200 text-sm font-medium rounded-xl transition-colors"
               >
                 ← Regenerate directions
