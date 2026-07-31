@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { flattenFingerprint } from '@/lib/fingerprint'
 import VideoUrlInput from '@/components/VideoUrlInput'
 import FingerprintEditor from '@/components/FingerprintEditor'
 import BrandBriefForm from '@/components/BrandBriefForm'
@@ -57,7 +58,7 @@ export default function Home() {
           setSessionId(stored)
           sessionIdRef.current = stored
           setTranscripts(session.transcripts ?? [])
-          setFingerprint(session.fingerprint ?? null)
+          setFingerprint(session.fingerprint ? flattenFingerprint(session.fingerprint) : null)
           setBrief(session.brief ?? null)
           setDirections(session.directions ?? [])
           setChatHistory(session.chatHistory ?? [])
@@ -112,7 +113,7 @@ export default function Home() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error ?? 'Analysis failed.')
-      setFingerprint(data.fingerprint)
+      setFingerprint(flattenFingerprint(data.fingerprint))
       setVisualsAnalyzed(data.visualsAnalyzed ?? 0)
       setStep(2)
     } catch (e: unknown) {
@@ -128,12 +129,13 @@ export default function Home() {
     setSavingFingerprint(true)
     setError(null)
     try {
+      const safe = flattenFingerprint(fp)
       await fetch('/api/session', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, fingerprint: fp }),
+        body: JSON.stringify({ sessionId, fingerprint: safe }),
       })
-      setFingerprint(fp)
+      setFingerprint(safe)
       setStep(3)
     } catch (e: unknown) {
       const err = e as { message?: string }

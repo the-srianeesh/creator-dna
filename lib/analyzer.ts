@@ -1,4 +1,5 @@
 import { chat, extractJson } from './ollama'
+import { flattenFingerprint } from './fingerprint'
 import type { TranscriptResult, CreatorFingerprint } from '@/types'
 
 // ─── System Prompt ────────────────────────────────────────────────────────────
@@ -97,38 +98,4 @@ Remember: Return ONLY the JSON object. No explanation or additional text.`
 
   const parsed = extractJson<CreatorFingerprint>(raw)
   return flattenFingerprint(parsed)
-}
-
-// ─── Safety normalizer ────────────────────────────────────────────────────────
-
-/**
- * Guarantees every field in the fingerprint is a plain string.
- * If the LLM returned a nested object or array for any field, flatten it to a
- * readable string so the UI never crashes trying to render a non-string value.
- */
-function flattenFingerprint(raw: CreatorFingerprint): CreatorFingerprint {
-  const keys = Object.keys(raw) as (keyof CreatorFingerprint)[]
-  const result = { ...raw }
-
-  for (const key of keys) {
-    const val = result[key]
-    if (typeof val === 'string') continue
-
-    if (Array.isArray(val)) {
-      // e.g. ["concise", "punchy"] → "concise, punchy"
-      result[key] = (val as unknown[])
-        .map((v) => (typeof v === 'object' ? JSON.stringify(v) : String(v)))
-        .join(', ')
-    } else if (typeof val === 'object' && val !== null) {
-      // e.g. { "Video 1": "handheld", "Video 2": "tripod" }
-      // → "Video 1: handheld, Video 2: tripod"
-      result[key] = Object.entries(val as Record<string, unknown>)
-        .map(([k, v]) => `${k}: ${v}`)
-        .join(', ')
-    } else {
-      result[key] = String(val ?? '')
-    }
-  }
-
-  return result
 }
