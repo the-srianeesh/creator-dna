@@ -7,6 +7,7 @@ interface Props {
   onSubmit: (brief: BrandBrief) => void
   isLoading?: boolean
   initialValues?: Partial<BrandBrief>
+  submitLabel?: string
 }
 
 const EMPTY: BrandBrief = {
@@ -18,7 +19,7 @@ const EMPTY: BrandBrief = {
   deliverables: '',
 }
 
-export default function BrandBriefForm({ onSubmit, isLoading = false, initialValues }: Props) {
+export default function BrandBriefForm({ onSubmit, isLoading = false, initialValues, submitLabel }: Props) {
   const [form, setForm] = useState<BrandBrief>({ ...EMPTY, ...initialValues })
   const [errors, setErrors] = useState<Partial<Record<keyof BrandBrief, string>>>({})
 
@@ -147,7 +148,14 @@ export default function BrandBriefForm({ onSubmit, isLoading = false, initialVal
         disabled={isLoading}
         className="w-full py-3 px-6 bg-violet-600 hover:bg-violet-500 disabled:bg-violet-900 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors"
       >
-        {isLoading ? 'Saving brief…' : 'Save Brand Brief →'}
+        {isLoading ? (
+          <span className="flex items-center justify-center gap-2">
+            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            {submitLabel ?? 'Saving…'}
+          </span>
+        ) : (
+          submitLabel ?? 'Save Brand Brief →'
+        )}
       </button>
     </form>
   )
