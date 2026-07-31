@@ -11,21 +11,25 @@ Be specific and observational. Do not be generic. If a creator uses specific phr
 
 For camera angles and editing style: use the provided visual frame analysis when available — this is based on actual video frames, not inference.
 
-You must respond with ONLY a valid JSON object — no explanation, no markdown, no preamble. The JSON must match this exact structure:
+You must respond with ONLY a valid JSON object — no explanation, no markdown, no preamble.
+
+CRITICAL: Every value must be a plain string. Do NOT use nested objects, arrays, or per-video breakdowns. Synthesize observations across all videos into a single descriptive string per field.
+
+The JSON must match this exact structure — all values are strings:
 
 {
-  "humor": "description of their humor style",
-  "pacing": "description of their pacing and rhythm",
-  "editingStyle": "description of their editing patterns",
-  "hookPatterns": "description of how they open videos",
-  "storytellingStructure": "description of their narrative arc",
-  "cameraAngles": "description of their visual framing tendencies — based on actual frame analysis if provided",
-  "energyLevel": "description of their energy and delivery style",
-  "niche": "their content niche and topic focus",
-  "ctaStyle": "how they close videos and prompt action",
-  "vocabulary": "their word choices, phrases, slang, sentence length",
-  "emotionalTone": "the emotional register and feeling of their content",
-  "audienceInteraction": "how they address and engage their viewers"
+  "humor": "single plain string describing humor style across all videos",
+  "pacing": "single plain string describing pacing and rhythm",
+  "editingStyle": "single plain string describing editing patterns",
+  "hookPatterns": "single plain string describing how they open videos",
+  "storytellingStructure": "single plain string describing their narrative arc",
+  "cameraAngles": "single plain string describing visual framing — based on actual frame analysis if provided",
+  "energyLevel": "single plain string describing energy and delivery style",
+  "niche": "single plain string describing their content niche and topic focus",
+  "ctaStyle": "single plain string describing how they close videos and prompt action",
+  "vocabulary": "single plain string describing their word choices, phrases, slang",
+  "emotionalTone": "single plain string describing the emotional register",
+  "audienceInteraction": "single plain string describing how they address and engage viewers"
 }`
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -91,5 +95,40 @@ Remember: Return ONLY the JSON object. No explanation or additional text.`
     maxTokens: 4096,
   })
 
-  return extractJson<CreatorFingerprint>(raw)
+  const parsed = extractJson<CreatorFingerprint>(raw)
+  return flattenFingerprint(parsed)
+}
+
+// ─── Safety normalizer ────────────────────────────────────────────────────────
+
+/**
+ * Guarantees every field in the fingerprint is a plain string.
+ * If the LLM returned a nested object or array for any field, flatten it to a
+ * readable string so the UI never crashes trying to render a non-string value.
+ */
+function flattenFingerprint(raw: CreatorFingerprint): CreatorFingerprint {
+  const keys = Object.keys(raw) as (keyof CreatorFingerprint)[]
+  const result = { ...raw }
+
+  for (const key of keys) {
+    const val = result[key]
+    if (typeof val === 'string') continue
+
+    if (Array.isArray(val)) {
+      // e.g. ["concise", "punchy"] → "concise, punchy"
+      result[key] = (val as unknown[])
+        .map((v) => (typeof v === 'object' ? JSON.stringify(v) : String(v)))
+        .join(', ')
+    } else if (typeof val === 'object' && val !== null) {
+      // e.g. { "Video 1": "handheld", "Video 2": "tripod" }
+      // → "Video 1: handheld, Video 2: tripod"
+      result[key] = Object.entries(val as Record<string, unknown>)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(', ')
+    } else {
+      result[key] = String(val ?? '')
+    }
+  }
+
+  return result
 }
