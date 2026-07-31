@@ -43,22 +43,22 @@ CRITICAL RULES:
 1. Each direction must feel like it was written BY the creator, not at them
 2. The hook, body, and CTA must use the creator's actual vocabulary and patterns
 3. All three directions must be meaningfully different — different hook style, energy level, or storytelling structure
-4. Scripts should be natural spoken word (30–45 seconds when read aloud at a natural pace)
-5. Visual notes should reference the creator's own camera/editing patterns
+4. Keep scripts tight: hook ≤ 20 words, body ≤ 60 words, CTA ≤ 20 words, visualNotes ≤ 30 words
+5. Rationale ≤ 2 sentences. Title ≤ 5 words.
 
-You must respond with ONLY a valid JSON array of exactly 3 objects. No explanation, no markdown fences, no preamble.
+You must respond with ONLY a valid JSON array of exactly 3 objects. No explanation, no markdown fences, no preamble. Start immediately with [
 
 Each object must match this exact structure:
 {
   "title": "Short direction name (3-5 words)",
   "angle": "One sentence describing the creative angle",
-  "rationale": "2-3 sentences explaining why this fits the creator's fingerprint",
+  "rationale": "2 sentences explaining why this fits the creator's fingerprint",
   "script": {
-    "hook": "Opening line(s) — first 3 seconds",
-    "body": "The main content — story, demonstration, or information",
-    "cta": "Closing call-to-action in the creator's voice"
+    "hook": "Opening line — first 3 seconds, max 20 words",
+    "body": "Main content — story or demonstration, max 60 words",
+    "cta": "Closing call-to-action in creator's voice, max 20 words"
   },
-  "visualNotes": "Specific direction for camera, editing, and on-screen elements"
+  "visualNotes": "Camera and editing direction, max 30 words"
 }`
 
 // ─── Context Builders ─────────────────────────────────────────────────────────
@@ -127,8 +127,8 @@ ${transcriptExcerpts(relevant)}
 Generate 3 distinct content directions as a JSON array. Remember: write IN the creator's voice, not about them.`.trim()
 
   const raw = await chat(SYSTEM_PROMPT, userMessage, {
-    temperature: 0.85, // higher temp for creative variety
-    maxTokens: 4096,
+    temperature: 0.7,
+    maxTokens: 8192,
   })
 
   const directions = extractJson<ContentDirection[]>(raw)
@@ -137,6 +137,6 @@ Generate 3 distinct content directions as a JSON array. Remember: write IN the c
     throw new Error('LLM returned invalid directions format.')
   }
 
-  // Ensure exactly 3 directions
+  // Accept 1-3 directions — partial is better than failure
   return directions.slice(0, 3)
 }

@@ -137,7 +137,10 @@ export function chatStream(
 
 /**
  * Extracts the first valid JSON object or array from a raw LLM response string.
- * Handles cases where the model wraps output in markdown code fences.
+ * Handles truncated responses by:
+ * 1. Trying clean parse first
+ * 2. For arrays: salvaging any complete objects before the truncation point
+ * 3. Structural repair by closing unclosed braces/brackets
  */
 export function extractJson<T>(raw: string): T {
   // Strip markdown code fences if present
@@ -153,54 +156,107 @@ export function extractJson<T>(raw: string): T {
   }
 
   const isArray = stripped[start] === '['
-  const lastCurly = stripped.lastIndexOf('}')
-  const lastSquare = stripped.lastIndexOf(']')
+  const fragment = stripped.slice(start)
+
+  // ── Step 1: Try clean parse ───────────────────────────────────────────────
+  const lastCurly = fragment.lastIndexOf('}')
+  const lastSquare = fragment.lastIndexOf(']')
   const end = Math.max(lastCurly, lastSquare)
 
-  // If we have a clean end, parse normally
-  if (end > start) {
+  if (end > 0) {
     try {
-      return JSON.parse(stripped.slice(start, end + 1)) as T
+      return JSON.parse(fragment.slice(0, end + 1)) as T
     } catch {
-      // Fall through to repair attempt
+      // fall through
     }
   }
 
-  // Repair truncated JSON — close any open braces/brackets
-  let fragment = stripped.slice(start)
+  // ── Step 2: For arrays — salvage complete objects ────────────────────────
+  // Find all complete top-level objects by scanning for balanced { }
+  if (isArray) {
+    const salvaged = extractCompleteObjects(fragment)
+    if (salvaged.length > 0) {
+      try {
+        return JSON.parse(`[${salvaged.join(',')}]`) as T
+      } catch {
+        // fall through
+      }
+    }
+  }
 
-  // Remove trailing incomplete key-value pair (e.g. `"key": "val` without closing quote)
-  fragment = fragment.replace(/,\s*"[^"]*":\s*"[^"]*$/, '')  // trailing incomplete string value
-  fragment = fragment.replace(/,\s*"[^"]*":\s*$/, '')          // trailing incomplete key
-  fragment = fragment.replace(/,\s*"[^"]*$/, '')               // trailing incomplete key with no colon
+  // ── Step 3: Structural repair ─────────────────────────────────────────────
+  let repaired = fragment
+
+  // Remove trailing incomplete string values and keys
+  repaired = repaired.replace(/,\s*"[^"]*":\s*\{[^}]*$/, '')   // incomplete nested object
+  repaired = repaired.replace(/,\s*"[^"]*":\s*"[^"]*$/, '')     // incomplete string value
+  repaired = repaired.replace(/,\s*"[^"]*":\s*$/, '')            // incomplete key
+  repaired = repaired.replace(/,\s*"[^"]*$/, '')                 // key with no colon
 
   // Count unclosed braces and brackets
   let openCurlies = 0
   let openSquares = 0
-  for (const ch of fragment) {
+  for (const ch of repaired) {
     if (ch === '{') openCurlies++
     else if (ch === '}') openCurlies--
     else if (ch === '[') openSquares++
     else if (ch === ']') openSquares--
   }
 
-  // Close them in reverse order
-  fragment += ']'.repeat(Math.max(0, openSquares))
-  fragment += '}'.repeat(Math.max(0, openCurlies))
+  repaired += '}'.repeat(Math.max(0, openCurlies))
+  repaired += ']'.repeat(Math.max(0, openSquares))
 
-  // Fallback: try wrapping as array if needed
-  const candidates = [fragment]
-  if (isArray && !fragment.startsWith('[')) candidates.push(`[${fragment}]`)
-
-  for (const candidate of candidates) {
-    try {
-      return JSON.parse(candidate) as T
-    } catch {
-      // try next
-    }
+  try {
+    return JSON.parse(repaired) as T
+  } catch {
+    // fall through
   }
 
   throw new Error(
     `Failed to parse JSON from LLM response (tried repair):\n${raw.slice(0, 300)}`
   )
+}
+
+/**
+ * Scans a JSON array string and returns all top-level complete objects as strings.
+ * Used to salvage partial arrays where the last object was cut off.
+ */
+function extractCompleteObjects(arrayStr: string): string[] {
+  const results: string[] = []
+  let depth = 0
+  let inString = false
+  let escape = false
+  let objStart = -1
+
+  for (let i = 0; i < arrayStr.length; i++) {
+    const ch = arrayStr[i]
+
+    if (escape) { escape = false; continue }
+    if (ch === '\\' && inString) { escape = true; continue }
+    if (ch === '"') { inString = !inString; continue }
+    if (inString) continue
+
+    if (ch === '{') {
+      if (depth === 0 || (depth === 1 && arrayStr[0] === '[')) {
+        if (depth === 0 && arrayStr[0] !== '[') objStart = i
+        if (depth === 1) objStart = i
+      }
+      depth++
+    } else if (ch === '}') {
+      depth--
+      if (depth === 1 && objStart !== -1 && arrayStr[0] === '[') {
+        results.push(arrayStr.slice(objStart, i + 1))
+        objStart = -1
+      } else if (depth === 0 && objStart !== -1 && arrayStr[0] !== '[') {
+        results.push(arrayStr.slice(objStart, i + 1))
+        objStart = -1
+      }
+    } else if (ch === '[') {
+      depth++
+    } else if (ch === ']') {
+      depth--
+    }
+  }
+
+  return results
 }
