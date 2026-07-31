@@ -15,13 +15,13 @@ import type {
   ChatMessage,
 } from '@/types'
 
-// ─── Step definitions ─────────────────────────────────────────────────────────
+// ─── Steps ────────────────────────────────────────────────────────────────────
 
 const STEPS = [
-  { id: 1, label: 'Add Videos' },
-  { id: 2, label: 'Review DNA' },
-  { id: 3, label: 'Brand Brief' },
-  { id: 4, label: 'Generate' },
+  { id: 1, label: 'Add Videos', icon: '📹', desc: 'Upload your portfolio' },
+  { id: 2, label: 'Review DNA', icon: '🧬', desc: 'Confirm your style profile' },
+  { id: 3, label: 'Brand Brief', icon: '📋', desc: 'Describe the campaign' },
+  { id: 4, label: 'Generate', icon: '✨', desc: 'Get your content directions' },
 ]
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -29,7 +29,7 @@ const STEPS = [
 export default function Home() {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const sessionIdRef = useRef<string | null>(null)
-  const [step, setStep] = useState(1)
+  const [step, setStep] = useState(0) // 0 = landing
   const [mode, setMode] = useState<AnalysisMode>('standard')
   const [transcripts, setTranscripts] = useState<TranscriptResult[]>([])
   const [fingerprint, setFingerprint] = useState<CreatorFingerprint | null>(null)
@@ -53,7 +53,7 @@ export default function Home() {
       fetch(`/api/session?sessionId=${stored}`)
         .then((r) => r.json())
         .then(({ session }) => {
-          if (!session) throw new Error('Session expired')
+          if (!session) throw new Error('expired')
           setSessionId(stored)
           sessionIdRef.current = stored
           setTranscripts(session.transcripts ?? [])
@@ -62,11 +62,11 @@ export default function Home() {
           setDirections(session.directions ?? [])
           setChatHistory(session.chatHistory ?? [])
 
-          // Restore step
           if (session.directions?.length > 0) setStep(4)
           else if (session.brief) setStep(4)
           else if (session.fingerprint) setStep(2)
           else if (session.transcripts?.length > 0) setStep(1)
+          else setStep(1)
         })
         .catch(() => createNewSession())
     } else {
@@ -100,7 +100,6 @@ export default function Home() {
     }
   }
 
-  // Triggered by "Continue to Analysis" — runs analysis then moves to Step 2
   async function handleContinueToAnalysis() {
     if (!sessionId || transcripts.length === 0) return
     setAnalyzing(true)
@@ -129,12 +128,11 @@ export default function Home() {
     setSavingFingerprint(true)
     setError(null)
     try {
-      const res = await fetch('/api/session', {
+      await fetch('/api/session', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId, fingerprint: fp }),
       })
-      if (!res.ok) throw new Error('Failed to save fingerprint.')
       setFingerprint(fp)
       setStep(3)
     } catch (e: unknown) {
@@ -145,13 +143,11 @@ export default function Home() {
     }
   }
 
-  // Triggered by brand brief submit — saves brief then auto-generates directions
   async function handleBriefSubmit(b: BrandBrief) {
     if (!sessionId) return
     setSavingBrief(true)
     setError(null)
     try {
-      // Save brief
       const saveRes = await fetch('/api/session', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -160,7 +156,6 @@ export default function Home() {
       if (!saveRes.ok) throw new Error('Failed to save brief.')
       setBrief(b)
 
-      // Auto-trigger generation
       setGenerating(true)
       const genRes = await fetch('/api/generate', {
         method: 'POST',
@@ -180,7 +175,6 @@ export default function Home() {
     }
   }
 
-  // Manual re-generation from Step 4
   async function handleRegenerate() {
     if (!sessionId) return
     setGenerating(true)
@@ -211,234 +205,407 @@ export default function Home() {
     setBrief(null)
     setDirections([])
     setChatHistory([])
+    setError(null)
     createNewSession()
   }
 
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
-      {/* Header */}
-      <header className="border-b border-zinc-800 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-2xl">🧬</span>
-          <div>
-            <h1 className="font-bold text-lg leading-none">Creator DNA</h1>
-            <p className="text-xs text-zinc-500 mt-0.5">AI-powered UGC content strategist</p>
-          </div>
-        </div>
-        <button
-          onClick={handleReset}
-          className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors"
-        >
-          Start over
-        </button>
-      </header>
+    <div className="min-h-screen bg-[#F8F9FB]">
 
-      <main className="max-w-2xl mx-auto px-4 py-8 space-y-8">
-        {/* Stepper */}
-        <Stepper currentStep={step} steps={STEPS} onStepClick={(s) => { if (s < step) setStep(s) }} />
-
-        {/* Error banner */}
-        {error && (
-          <div className="bg-red-900/30 border border-red-700 rounded-xl px-4 py-3 text-sm text-red-300 flex items-start gap-2">
-            <span>⚠️</span>
-            <span>{error}</span>
-            <button onClick={() => setError(null)} className="ml-auto text-red-500 hover:text-red-300">✕</button>
-          </div>
-        )}
-
-        {/* Step 1 — Add Videos */}
-        {step === 1 && (
-          <Card
-            title="Step 1 — Add Your Videos"
-            subtitle="Paste public TikTok or Instagram video URLs from your own profile. Add 3–8 for best results."
+      {/* ── Top Nav ── */}
+      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-[#E4E8F0]">
+        <div className="max-w-5xl mx-auto px-5 py-3 flex items-center justify-between">
+          {/* Logo */}
+          <button
+            onClick={() => step > 0 && handleReset()}
+            className="flex items-center gap-2.5 group"
           >
-            <VideoUrlInput
-              mode={mode}
-              onModeChange={setMode}
-              onTranscriptAdded={handleTranscriptAdded}
-              disabled={analyzing}
-            />
-            {transcripts.length > 0 && (
+            <div className="w-8 h-8 rounded-xl dna-gradient flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-sm font-black">C</span>
+            </div>
+            <div className="leading-none">
+              <span className="text-sm font-light text-[#1B2B4B] tracking-tight">CREATOR</span>
+              <span className="text-sm font-black text-[#1B2B4B] tracking-tight">DNA</span>
+            </div>
+          </button>
+
+          {/* Step progress — only when in flow */}
+          {step >= 1 && (
+            <div className="hidden sm:flex items-center gap-0">
+              {STEPS.map((s, i) => {
+                const done = s.id < step
+                const active = s.id === step
+                return (
+                  <div key={s.id} className="flex items-center">
+                    <button
+                      onClick={() => done && setStep(s.id)}
+                      disabled={!done}
+                      className={[
+                        'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-smooth',
+                        active ? 'bg-[#EEF1F7] text-[#1B2B4B]' : done ? 'text-[#5A6A85] hover:text-[#1B2B4B] cursor-pointer' : 'text-[#C8D0E0] cursor-default',
+                      ].join(' ')}
+                    >
+                      <span className={[
+                        'w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center flex-shrink-0',
+                        done ? 'text-white' : active ? 'bg-[#1B2B4B] text-white' : 'bg-[#E4E8F0] text-[#C8D0E0]',
+                      ].join(' ')}
+                        style={done ? { background: 'linear-gradient(135deg, #00C8D4, #9B4FD8)' } : {}}
+                      >
+                        {done ? '✓' : s.id}
+                      </span>
+                      <span className="hidden md:inline">{s.label}</span>
+                    </button>
+                    {i < STEPS.length - 1 && (
+                      <div className={[
+                        'w-6 h-px mx-0.5',
+                        done ? 'bg-gradient-to-r from-[#00C8D4] to-[#9B4FD8]' : 'bg-[#E4E8F0]',
+                      ].join(' ')} />
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Right actions */}
+          <div className="flex items-center gap-2">
+            {step >= 1 && (
               <button
-                onClick={handleContinueToAnalysis}
-                disabled={analyzing}
-                className="w-full mt-4 py-3 bg-violet-600 hover:bg-violet-500 disabled:bg-violet-900 disabled:cursor-not-allowed text-white font-semibold rounded-xl transition-colors"
+                onClick={handleReset}
+                className="text-xs font-medium text-[#8A99B3] hover:text-[#1B2B4B] transition-smooth px-3 py-1.5 rounded-lg hover:bg-[#EEF1F7]"
               >
-                {analyzing ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Analyzing style + extracting video frames… ~1 min
-                  </span>
-                ) : (
-                  'Analyze My Creator DNA →'
-                )}
+                Start over
               </button>
             )}
-          </Card>
-        )}
+          </div>
+        </div>
+      </header>
 
-        {/* Step 2 — Review & Edit DNA */}
-        {step === 2 && fingerprint && (
-          <Card
-            title="Step 2 — Review Your Creator DNA"
-            subtitle="The AI has analyzed your style. Review each dimension and correct anything that feels off before generating content."
-          >
-            <FingerprintEditor
-              fingerprint={fingerprint}
-              onConfirm={handleFingerprintConfirm}
-              isLoading={savingFingerprint}
-              visualsAnalyzed={visualsAnalyzed}
-            />
-          </Card>
-        )}
-
-        {/* Step 3 — Brand Brief */}
-        {step === 3 && (
-          <Card
-            title="Step 3 — Brand Brief"
-            subtitle="Tell the AI about the brand. Be specific — better brief = better content. Directions will be generated automatically."
-          >
-            <BrandBriefForm
-              onSubmit={handleBriefSubmit}
-              isLoading={savingBrief || generating}
-              initialValues={brief ?? undefined}
-              submitLabel={generating ? 'Generating directions…' : savingBrief ? 'Saving brief…' : 'Save Brief & Generate Directions →'}
-            />
-          </Card>
-        )}
-
-        {/* Step 4 — Generate (directions + chat) */}
-        {step === 4 && sessionId && (
-          <div className="space-y-8">
-            {directions.length > 0 ? (
-              <ContentDirections
-                directions={directions}
-                onDirectionSelect={setSelectedDirectionIndex}
-                selectedIndex={selectedDirectionIndex}
-              />
-            ) : (
-              <Card title="Generating your directions…" subtitle="This takes about 45 seconds.">
-                <div className="flex items-center justify-center py-8">
-                  <span className="w-8 h-8 border-2 border-violet-600/30 border-t-violet-500 rounded-full animate-spin" />
+      {/* ── Landing / Hero (step 0) ── */}
+      {step === 0 && (
+        <div className="animate-fade-in">
+          {/* Hero */}
+          <section className="max-w-4xl mx-auto px-5 pt-20 pb-16 text-center">
+            {/* DNA helix decoration */}
+            <div className="flex justify-center mb-8">
+              <div className="relative">
+                <div className="w-20 h-20 rounded-3xl dna-gradient flex items-center justify-center shadow-xl shadow-cyan-200/40">
+                  <span className="text-4xl">🧬</span>
                 </div>
-              </Card>
-            )}
+                <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-[#FF6B35] flex items-center justify-center shadow-md">
+                  <span className="text-white text-xs">✨</span>
+                </div>
+              </div>
+            </div>
 
-            {directions.length > 0 && (
-              <div className="border-t border-zinc-800 pt-8">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-lg">💬</span>
+            <h1 className="text-4xl sm:text-5xl font-black text-[#1B2B4B] leading-tight tracking-tight mb-4">
+              Your Creative DNA,<br />
+              <span className="dna-gradient-text">Decoded.</span>
+            </h1>
+            <p className="text-lg text-[#5A6A85] max-w-xl mx-auto leading-relaxed mb-10">
+              Upload your portfolio. Get a precise analysis of your creative style.
+              Generate brand campaigns written entirely in your voice.
+            </p>
+
+            <button
+              onClick={() => setStep(1)}
+              className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl text-white font-bold text-base transition-smooth hover:opacity-90 hover:scale-[1.02] shadow-lg shadow-navy-900/20 relative overflow-hidden group"
+              style={{ background: 'linear-gradient(135deg, #1B2B4B 0%, #2D4169 100%)' }}
+            >
+              <span className="relative z-10">Start Analyzing Your DNA</span>
+              <span className="relative z-10 text-lg">→</span>
+              <div className="absolute inset-0 dna-gradient opacity-0 group-hover:opacity-20 transition-smooth" />
+            </button>
+
+            <p className="mt-4 text-xs text-[#8A99B3]">Works with TikTok & Instagram · No account required</p>
+          </section>
+
+          {/* How it works */}
+          <section className="max-w-4xl mx-auto px-5 pb-20">
+            <p className="text-xs font-bold uppercase tracking-widest text-[#8A99B3] text-center mb-8">How it works</p>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+              {STEPS.map((s, i) => (
+                <div
+                  key={s.id}
+                  className="bg-white rounded-2xl border border-[#E4E8F0] p-5 space-y-3 animate-slide-up"
+                  style={{ animationDelay: `${i * 80}ms` }}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl flex items-center justify-center text-base"
+                      style={{ background: ['rgba(0,200,212,0.1)', 'rgba(155,79,216,0.1)', 'rgba(255,107,53,0.1)', 'rgba(27,43,75,0.08)'][i] }}>
+                      {s.icon}
+                    </div>
+                    <span className="text-xs font-black text-[#C8D0E0]">0{s.id}</span>
+                  </div>
                   <div>
-                    <h2 className="font-semibold text-zinc-100">AI Strategist Chat</h2>
-                    <p className="text-xs text-zinc-500">Get clarity, rewrites, alternatives — all grounded in your fingerprint</p>
+                    <p className="text-sm font-bold text-[#1B2B4B]">{s.label}</p>
+                    <p className="text-xs text-[#8A99B3] mt-0.5">{s.desc}</p>
                   </div>
                 </div>
-                <ChatInterface
-                  sessionId={sessionId}
-                  directions={directions}
-                  initialHistory={chatHistory}
-                />
-              </div>
-            )}
+              ))}
+            </div>
+          </section>
+        </div>
+      )}
 
-            {directions.length > 0 && (
-              <div className="flex gap-3">
-                <button
-                  onClick={handleRegenerate}
-                  disabled={generating}
-                  className="flex-1 py-2.5 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-zinc-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium rounded-xl transition-colors"
-                >
-                  {generating ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="w-3 h-3 border border-zinc-500 border-t-zinc-200 rounded-full animate-spin" />
-                      Regenerating…
-                    </span>
-                  ) : (
-                    '↺ Regenerate directions'
-                  )}
-                </button>
-                <button
-                  onClick={() => setStep(3)}
-                  className="flex-1 py-2.5 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-zinc-200 text-sm font-medium rounded-xl transition-colors"
-                >
-                  ← Edit brief
-                </button>
-                <button
-                  onClick={handleReset}
-                  className="flex-1 py-2.5 border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-zinc-200 text-sm font-medium rounded-xl transition-colors"
-                >
-                  Start over
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-      </main>
+      {/* ── Workflow Steps ── */}
+      {step >= 1 && (
+        <main className="max-w-2xl mx-auto px-4 py-8 space-y-6">
+
+          {/* Error banner */}
+          {error && (
+            <div className="flex items-start gap-3 px-4 py-3 rounded-xl border border-red-100 bg-red-50 animate-slide-up">
+              <span className="text-red-400 flex-shrink-0">⚠</span>
+              <p className="text-sm text-red-700 flex-1">{error}</p>
+              <button onClick={() => setError(null)} className="text-red-300 hover:text-red-500 transition-smooth flex-shrink-0">✕</button>
+            </div>
+          )}
+
+          {/* ── Step 1 — Add Videos ── */}
+          {step === 1 && (
+            <div className="animate-slide-up">
+              <StepCard
+                step={1}
+                title="Add Your Videos"
+                subtitle="Paste public TikTok or Instagram URLs from your profile. The AI will analyze your style across all dimensions."
+                accent="#00C8D4"
+              >
+                <VideoUrlInput
+                  mode={mode}
+                  onModeChange={setMode}
+                  onTranscriptAdded={handleTranscriptAdded}
+                  disabled={analyzing}
+                />
+
+                {transcripts.length > 0 && (
+                  <div className="pt-2 animate-slide-up">
+                    {/* Readiness indicator */}
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex gap-0.5">
+                          {[1,2,3,4,5].map((n) => (
+                            <div
+                              key={n}
+                              className="w-5 h-1.5 rounded-full transition-smooth"
+                              style={{
+                                background: transcripts.length >= n
+                                  ? 'linear-gradient(90deg, #00C8D4, #9B4FD8)'
+                                  : '#E4E8F0'
+                              }}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-xs text-[#8A99B3]">
+                          {transcripts.length < 3
+                            ? `Add ${3 - transcripts.length} more for best results`
+                            : transcripts.length >= 5
+                            ? 'Great sample size!'
+                            : 'Good — add more for richer analysis'}
+                        </span>
+                      </div>
+                      <span className="text-xs font-bold text-[#1B2B4B]">{transcripts.length} video{transcripts.length !== 1 ? 's' : ''}</span>
+                    </div>
+
+                    <button
+                      onClick={handleContinueToAnalysis}
+                      disabled={analyzing}
+                      className="w-full py-4 rounded-2xl text-sm font-bold text-white transition-smooth disabled:opacity-60 disabled:cursor-not-allowed relative overflow-hidden group"
+                      style={{ background: 'linear-gradient(135deg, #1B2B4B 0%, #2D4169 100%)' }}
+                    >
+                      {analyzing ? (
+                        <span className="flex items-center justify-center gap-3">
+                          <DNALoader />
+                          Analyzing style + extracting video frames…
+                        </span>
+                      ) : (
+                        <span className="relative z-10">Analyze My Creator DNA →</span>
+                      )}
+                      <div className="absolute inset-0 dna-gradient opacity-0 group-hover:opacity-20 transition-smooth" />
+                    </button>
+                  </div>
+                )}
+              </StepCard>
+            </div>
+          )}
+
+          {/* ── Step 2 — Review DNA ── */}
+          {step === 2 && fingerprint && (
+            <div className="animate-slide-up">
+              <StepCard
+                step={2}
+                title="Review Your Creator DNA"
+                subtitle="The AI has built your style profile. Review each dimension — click any field to correct inaccuracies before generating content."
+                accent="#9B4FD8"
+              >
+                <FingerprintEditor
+                  fingerprint={fingerprint}
+                  onConfirm={handleFingerprintConfirm}
+                  isLoading={savingFingerprint}
+                  visualsAnalyzed={visualsAnalyzed}
+                />
+              </StepCard>
+            </div>
+          )}
+
+          {/* ── Step 3 — Brand Brief ── */}
+          {step === 3 && (
+            <div className="animate-slide-up">
+              <StepCard
+                step={3}
+                title="Brand Brief"
+                subtitle="Describe the campaign. The AI will generate 3 content directions automatically when you submit."
+                accent="#FF6B35"
+              >
+                <BrandBriefForm
+                  onSubmit={handleBriefSubmit}
+                  isLoading={savingBrief || generating}
+                  initialValues={brief ?? undefined}
+                  submitLabel={
+                    generating
+                      ? 'Generating your content directions…'
+                      : savingBrief
+                      ? 'Saving brief…'
+                      : 'Save Brief & Generate Directions →'
+                  }
+                />
+              </StepCard>
+            </div>
+          )}
+
+          {/* ── Step 4 — Generate ── */}
+          {step === 4 && sessionId && (
+            <div className="space-y-6 animate-slide-up">
+
+              {/* Directions or loading */}
+              {directions.length > 0 ? (
+                <ContentDirections
+                  directions={directions}
+                  onDirectionSelect={setSelectedDirectionIndex}
+                  selectedIndex={selectedDirectionIndex}
+                />
+              ) : (
+                <div className="bg-white rounded-2xl border border-[#E4E8F0] p-12 text-center space-y-4">
+                  <div className="flex justify-center gap-2">
+                    <DNALoader />
+                  </div>
+                  <div>
+                    <p className="font-bold text-[#1B2B4B]">Writing your content directions…</p>
+                    <p className="text-sm text-[#8A99B3] mt-1">The AI is crafting 3 approaches in your exact voice</p>
+                  </div>
+                  <div className="flex justify-center gap-6 pt-2">
+                    {['Analyzing DNA', 'Matching brief', 'Writing scripts'].map((label, i) => (
+                      <div key={i} className="flex items-center gap-1.5">
+                        <span className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black text-white"
+                          style={{ background: ['#00C8D4','#9B4FD8','#FF6B35'][i] }}>
+                          {i + 1}
+                        </span>
+                        <span className="text-xs text-[#8A99B3]">{label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* AI Strategist Chat */}
+              {directions.length > 0 && (
+                <div className="animate-slide-up">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="h-px flex-1 bg-[#E4E8F0]" />
+                    <span className="text-xs font-bold uppercase tracking-widest text-[#8A99B3] px-3">Creative Director Chat</span>
+                    <div className="h-px flex-1 bg-[#E4E8F0]" />
+                  </div>
+                  <ChatInterface
+                    sessionId={sessionId}
+                    directions={directions}
+                    initialHistory={chatHistory}
+                  />
+                </div>
+              )}
+
+              {/* Bottom actions */}
+              {directions.length > 0 && (
+                <div className="flex gap-2 animate-slide-up">
+                  <button
+                    onClick={handleRegenerate}
+                    disabled={generating}
+                    className="flex-1 py-3 rounded-xl border border-[#E4E8F0] bg-white text-xs font-semibold text-[#5A6A85] hover:text-[#1B2B4B] hover:border-[#C8D0E0] disabled:opacity-50 disabled:cursor-not-allowed transition-smooth flex items-center justify-center gap-2"
+                  >
+                    {generating ? (
+                      <><span className="w-3 h-3 border border-[#C8D0E0] border-t-[#1B2B4B] rounded-full animate-spin" /> Regenerating…</>
+                    ) : '↺ New directions'}
+                  </button>
+                  <button
+                    onClick={() => setStep(3)}
+                    className="flex-1 py-3 rounded-xl border border-[#E4E8F0] bg-white text-xs font-semibold text-[#5A6A85] hover:text-[#1B2B4B] hover:border-[#C8D0E0] transition-smooth"
+                  >
+                    ← Edit brief
+                  </button>
+                  <button
+                    onClick={handleReset}
+                    className="flex-1 py-3 rounded-xl border border-[#E4E8F0] bg-white text-xs font-semibold text-[#5A6A85] hover:text-[#1B2B4B] hover:border-[#C8D0E0] transition-smooth"
+                  >
+                    Start over
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </main>
+      )}
     </div>
   )
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function Stepper({
-  steps,
-  currentStep,
-  onStepClick,
+function StepCard({
+  step, title, subtitle, accent, children,
 }: {
-  steps: { id: number; label: string }[]
-  currentStep: number
-  onStepClick: (step: number) => void
+  step: number; title: string; subtitle: string; accent: string; children: React.ReactNode
 }) {
   return (
-    <div className="flex items-center gap-0">
-      {steps.map((s, i) => {
-        const done = s.id < currentStep
-        const active = s.id === currentStep
-        return (
-          <div key={s.id} className="flex items-center flex-1 min-w-0">
-            <button
-              onClick={() => onStepClick(s.id)}
-              disabled={s.id > currentStep}
-              className="flex flex-col items-center gap-1 flex-shrink-0 disabled:cursor-default group"
-            >
-              <div className={[
-                'w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors',
-                done ? 'bg-violet-600 text-white group-hover:bg-violet-500' : active ? 'bg-white text-zinc-900' : 'bg-zinc-800 text-zinc-600',
-              ].join(' ')}>
-                {done ? '✓' : s.id}
-              </div>
-              <span className={`text-[10px] hidden sm:block ${active ? 'text-zinc-200' : done ? 'text-zinc-400' : 'text-zinc-600'}`}>
-                {s.label}
-              </span>
-            </button>
-            {i < steps.length - 1 && (
-              <div className={`flex-1 h-px mx-2 ${done ? 'bg-violet-600' : 'bg-zinc-800'}`} />
-            )}
+    <div className="bg-white rounded-3xl border border-[#E4E8F0] overflow-hidden shadow-sm">
+      {/* Accent bar */}
+      <div className="h-1 w-full" style={{ background: `linear-gradient(90deg, ${accent}, #1B2B4B)` }} />
+
+      <div className="p-6 sm:p-8">
+        {/* Header */}
+        <div className="flex items-start gap-4 mb-6">
+          <div
+            className="w-10 h-10 rounded-2xl flex items-center justify-center flex-shrink-0 text-sm font-black text-white"
+            style={{ background: `linear-gradient(135deg, ${accent}, #1B2B4B)` }}
+          >
+            {step}
           </div>
-        )
-      })}
+          <div>
+            <h2 className="text-lg font-black text-[#1B2B4B] leading-snug">{title}</h2>
+            <p className="text-sm text-[#8A99B3] mt-0.5 leading-relaxed">{subtitle}</p>
+          </div>
+        </div>
+
+        {children}
+      </div>
     </div>
   )
 }
 
-function Card({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string
-  subtitle?: string
-  children: React.ReactNode
-}) {
+function DNALoader() {
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 space-y-5">
-      <div>
-        <h2 className="font-semibold text-zinc-100">{title}</h2>
-        {subtitle && <p className="text-sm text-zinc-500 mt-1">{subtitle}</p>}
-      </div>
-      {children}
+    <div className="flex items-end gap-0.5 h-5">
+      {['#00C8D4', '#9B4FD8', '#FF6B35', '#E8365D', '#00C8D4'].map((color, i) => (
+        <div
+          key={i}
+          className="w-1 rounded-full animate-bounce"
+          style={{
+            background: color,
+            height: '100%',
+            animationDelay: `${i * 100}ms`,
+            animationDuration: '0.8s',
+          }}
+        />
+      ))}
     </div>
   )
 }

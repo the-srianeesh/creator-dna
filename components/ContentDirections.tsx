@@ -9,31 +9,45 @@ interface Props {
   selectedIndex?: number
 }
 
-const DIRECTION_COLORS = [
-  { border: 'border-violet-500', badge: 'bg-violet-500/20 text-violet-300', num: 'text-violet-400' },
-  { border: 'border-cyan-500', badge: 'bg-cyan-500/20 text-cyan-300', num: 'text-cyan-400' },
-  { border: 'border-emerald-500', badge: 'bg-emerald-500/20 text-emerald-300', num: 'text-emerald-400' },
+const DIRECTION_ACCENTS = [
+  { border: '#00C8D4', bg: 'rgba(0,200,212,0.06)', num: '#00C8D4', badge: { bg: 'rgba(0,200,212,0.1)', color: '#00A8A8' } },
+  { border: '#9B4FD8', bg: 'rgba(155,79,216,0.06)', num: '#9B4FD8', badge: { bg: 'rgba(155,79,216,0.1)', color: '#9B4FD8' } },
+  { border: '#FF6B35', bg: 'rgba(255,107,53,0.06)', num: '#FF6B35', badge: { bg: 'rgba(255,107,53,0.1)', color: '#E8365D' } },
 ]
 
 export default function ContentDirections({ directions, onDirectionSelect, selectedIndex }: Props) {
   const [expanded, setExpanded] = useState<number | null>(0)
+  const [copied, setCopied] = useState<string | null>(null)
 
   function toggle(i: number) {
     setExpanded((prev) => (prev === i ? null : i))
     onDirectionSelect?.(i)
   }
 
+  async function copyScript(dir: ContentDirection, i: number) {
+    const text = `HOOK:\n${dir.script.hook}\n\nBODY:\n${dir.script.body}\n\nCTA:\n${dir.script.cta}`
+    await navigator.clipboard.writeText(text)
+    setCopied(`${i}`)
+    setTimeout(() => setCopied(null), 2000)
+  }
+
   if (directions.length === 0) return null
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 animate-fade-in">
+      {/* Section header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-zinc-100">Your 3 Content Directions</h2>
-        <span className="text-xs text-zinc-500">Click a direction to expand the full script</span>
+        <div>
+          <h2 className="text-lg font-bold text-[#1B2B4B]">Your Content Directions</h2>
+          <p className="text-sm text-[#8A99B3] mt-0.5">3 directions written in your voice — each takes a different creative angle</p>
+        </div>
+        <div className="w-8 h-8 rounded-xl dna-gradient flex items-center justify-center flex-shrink-0">
+          <span className="text-white text-sm">✨</span>
+        </div>
       </div>
 
       {directions.map((dir, i) => {
-        const color = DIRECTION_COLORS[i % DIRECTION_COLORS.length]
+        const accent = DIRECTION_ACCENTS[i % DIRECTION_ACCENTS.length]
         const isOpen = expanded === i
         const isSelected = selectedIndex === i
 
@@ -41,61 +55,113 @@ export default function ContentDirections({ directions, onDirectionSelect, selec
           <div
             key={i}
             className={[
-              'rounded-xl border bg-zinc-900 overflow-hidden transition-all',
-              color.border,
-              isSelected ? 'ring-2 ring-white/10' : '',
+              'rounded-2xl border transition-smooth overflow-hidden animate-slide-up',
+              isSelected ? 'ring-2 ring-offset-1' : '',
             ].join(' ')}
+            style={{
+              borderColor: isOpen ? accent.border : '#E4E8F0',
+              background: isOpen ? accent.bg : 'white',
+              animationDelay: `${i * 80}ms`,
+            }}
           >
-            {/* Header — always visible */}
+            {/* Header */}
             <button
               onClick={() => toggle(i)}
-              className="w-full flex items-start gap-4 p-5 text-left hover:bg-zinc-800/50 transition-colors"
+              className="w-full flex items-start gap-4 p-5 text-left hover:bg-black/[0.02] transition-smooth"
             >
-              <span className={`text-3xl font-black mt-0.5 ${color.num}`}>{i + 1}</span>
+              {/* Number */}
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 font-black text-lg border-2"
+                style={{ borderColor: accent.border, color: accent.num, background: `${accent.border}15` }}
+              >
+                {i + 1}
+              </div>
+
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-semibold text-zinc-100">{dir.title}</h3>
-                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${color.badge}`}>
-                    Direction {i + 1}
+                  <h3 className="font-bold text-[#1B2B4B] text-sm">{dir.title}</h3>
+                  <span
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wide"
+                    style={accent.badge}
+                  >
+                    DIRECTION {i + 1}
                   </span>
                 </div>
-                <p className="text-sm text-zinc-400 mt-1">{dir.angle}</p>
+                <p className="text-sm text-[#5A6A85] mt-1 leading-snug">{dir.angle}</p>
               </div>
-              <span className="text-zinc-500 mt-1 flex-shrink-0">{isOpen ? '▲' : '▼'}</span>
+
+              <span className="text-[#8A99B3] flex-shrink-0 mt-1 text-sm">
+                {isOpen ? '▲' : '▼'}
+              </span>
             </button>
 
-            {/* Expanded content */}
+            {/* Expanded */}
             {isOpen && (
-              <div className="border-t border-zinc-800 p-5 space-y-5">
-                {/* Rationale */}
-                <Section label="Why This Fits You">
-                  <p className="text-sm text-zinc-300 leading-relaxed">{dir.rationale}</p>
-                </Section>
+              <div className="border-t px-5 pb-5 pt-4 space-y-5 animate-slide-up" style={{ borderColor: `${accent.border}30` }}>
+
+                {/* Rationale — AI explains itself */}
+                <div className="flex items-start gap-3 p-3 rounded-xl"
+                  style={{ background: `${accent.border}08`, border: `1px solid ${accent.border}20` }}>
+                  <span className="text-sm flex-shrink-0 mt-0.5">🧠</span>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: accent.num }}>
+                      Why this fits your style
+                    </p>
+                    <p className="text-xs text-[#5A6A85] leading-relaxed">{dir.rationale}</p>
+                  </div>
+                </div>
 
                 {/* Script */}
-                <Section label="Script">
-                  <div className="space-y-3">
-                    <ScriptBlock label="🎣 Hook" content={dir.script.hook} color="violet" />
-                    <ScriptBlock label="📖 Body" content={dir.script.body} color="zinc" />
-                    <ScriptBlock label="📣 CTA" content={dir.script.cta} color="emerald" />
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-bold uppercase tracking-wider text-[#1B2B4B]">Full Script</p>
+                    <button
+                      onClick={() => copyScript(dir, i)}
+                      className="text-xs font-semibold px-3 py-1 rounded-lg transition-smooth"
+                      style={{
+                        background: copied === `${i}` ? 'rgba(0,200,212,0.1)' : '#EEF1F7',
+                        color: copied === `${i}` ? '#00A8A8' : '#5A6A85',
+                      }}
+                    >
+                      {copied === `${i}` ? '✓ Copied!' : '⎘ Copy script'}
+                    </button>
                   </div>
-                </Section>
+                  <div className="space-y-2">
+                    <ScriptSection
+                      label="Hook" icon="🎣"
+                      content={dir.script.hook}
+                      accent={accent.border}
+                    />
+                    <ScriptSection
+                      label="Body" icon="📖"
+                      content={dir.script.body}
+                      accent="#1B2B4B"
+                    />
+                    <ScriptSection
+                      label="CTA" icon="📣"
+                      content={dir.script.cta}
+                      accent="#FF6B35"
+                    />
+                  </div>
+                </div>
 
-                {/* Visual Notes */}
-                <Section label="📸 Visual & Editing Notes">
-                  <p className="text-sm text-zinc-300 leading-relaxed italic">{dir.visualNotes}</p>
-                </Section>
+                {/* Visual notes */}
+                <div className="p-3 rounded-xl bg-[#F8F9FB] border border-[#E4E8F0]">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[#8A99B3] mb-1.5">📸 Visual & Editing Notes</p>
+                  <p className="text-xs text-[#5A6A85] leading-relaxed italic">{dir.visualNotes}</p>
+                </div>
 
-                {/* Select for chat */}
+                {/* Ask AI button */}
                 {onDirectionSelect && (
                   <button
                     onClick={() => onDirectionSelect(i)}
                     className={[
-                      'w-full py-2.5 px-4 rounded-lg text-sm font-medium transition-colors',
+                      'w-full py-2.5 px-4 rounded-xl text-sm font-semibold transition-smooth border',
                       isSelected
-                        ? 'bg-white/10 text-white border border-white/20'
-                        : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700',
+                        ? 'text-white border-transparent'
+                        : 'text-[#1B2B4B] border-[#E4E8F0] hover:border-[#1B2B4B] bg-white',
                     ].join(' ')}
+                    style={isSelected ? { background: `linear-gradient(135deg, #1B2B4B, #2D4169)` } : {}}
                   >
                     {isSelected ? '✓ Discussing this direction in chat' : 'Ask AI about this direction →'}
                   </button>
@@ -109,36 +175,18 @@ export default function ContentDirections({ directions, onDirectionSelect, selec
   )
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function Section({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{label}</p>
-      {children}
-    </div>
-  )
-}
-
-function ScriptBlock({
-  label,
-  content,
-  color,
-}: {
-  label: string
-  content: string
-  color: 'violet' | 'zinc' | 'emerald'
+function ScriptSection({ label, icon, content, accent }: {
+  label: string; icon: string; content: string; accent: string
 }) {
-  const bg = {
-    violet: 'bg-violet-950/40 border-violet-800/50',
-    zinc: 'bg-zinc-800/60 border-zinc-700/50',
-    emerald: 'bg-emerald-950/40 border-emerald-800/50',
-  }[color]
-
   return (
-    <div className={`rounded-lg border p-3 ${bg}`}>
-      <p className="text-xs font-semibold text-zinc-500 mb-1.5">{label}</p>
-      <p className="text-sm text-zinc-200 leading-relaxed whitespace-pre-wrap">{content}</p>
+    <div className="rounded-xl overflow-hidden border border-[#E4E8F0]">
+      <div className="flex items-center gap-2 px-3 py-2 bg-[#F8F9FB] border-b border-[#E4E8F0]">
+        <span className="text-sm">{icon}</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: accent }}>{label}</span>
+      </div>
+      <div className="px-4 py-3 bg-white">
+        <p className="text-sm text-[#1B2B4B] leading-relaxed whitespace-pre-wrap">{content}</p>
+      </div>
     </div>
   )
 }

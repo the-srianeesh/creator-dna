@@ -10,10 +10,10 @@ interface Props {
 }
 
 const SUGGESTIONS = [
-  'Give me 3 alternative hooks for direction 1',
-  'Rewrite the CTA to sound less salesy',
-  'How do I make the body feel more natural?',
-  'What should I avoid saying for this brand?',
+  { icon: '🎣', text: 'Give me 3 alternative hooks for direction 1' },
+  { icon: '🔁', text: 'Rewrite the CTA to sound less salesy' },
+  { icon: '🎙️', text: 'Make the body feel more natural and conversational' },
+  { icon: '🚫', text: 'What should I avoid saying for this brand?' },
 ]
 
 export default function ChatInterface({ sessionId, directions, initialHistory = [] }: Props) {
@@ -41,8 +41,6 @@ export default function ChatInterface({ sessionId, directions, initialHistory = 
       content: trimmed,
       timestamp: new Date().toISOString(),
     }
-
-    // Optimistically add user message + empty assistant placeholder
     const assistantPlaceholder: ChatMessage = {
       role: 'assistant',
       content: '',
@@ -72,21 +70,15 @@ export default function ChatInterface({ sessionId, directions, initialHistory = 
         const { done, value } = await reader.read()
         if (done) break
         accumulated += decoder.decode(value, { stream: true })
-
-        // Update the last (assistant) message in real time
         setMessages((prev) => {
           const updated = [...prev]
-          updated[updated.length - 1] = {
-            ...updated[updated.length - 1],
-            content: accumulated,
-          }
+          updated[updated.length - 1] = { ...updated[updated.length - 1], content: accumulated }
           return updated
         })
       }
     } catch (e: unknown) {
       const err = e as { message?: string }
       setError(err?.message ?? 'Something went wrong. Please try again.')
-      // Remove the empty assistant placeholder on error
       setMessages((prev) => prev.slice(0, -1))
     } finally {
       setIsStreaming(false)
@@ -102,50 +94,76 @@ export default function ChatInterface({ sessionId, directions, initialHistory = 
   }
 
   return (
-    <div className="flex flex-col h-full min-h-[500px]">
-      {/* Direction context selector */}
-      {directions.length > 0 && (
-        <div className="flex gap-2 flex-wrap mb-4">
-          <span className="text-xs text-zinc-500 self-center">Focus on:</span>
-          <button
-            onClick={() => setFocusIndex(null)}
-            className={`text-xs px-3 py-1 rounded-full border transition-colors ${
-              focusIndex === null
-                ? 'bg-zinc-700 border-zinc-500 text-zinc-100'
-                : 'border-zinc-700 text-zinc-500 hover:border-zinc-500'
-            }`}
-          >
-            All directions
-          </button>
-          {directions.map((d, i) => (
-            <button
-              key={i}
-              onClick={() => setFocusIndex(i)}
-              className={`text-xs px-3 py-1 rounded-full border transition-colors ${
-                focusIndex === i
-                  ? 'bg-violet-600 border-violet-500 text-white'
-                  : 'border-zinc-700 text-zinc-500 hover:border-violet-600 hover:text-violet-300'
-              }`}
-            >
-              Direction {i + 1}
-            </button>
-          ))}
-        </div>
-      )}
+    <div className="flex flex-col rounded-2xl border border-[#E4E8F0] bg-white overflow-hidden" style={{ minHeight: 480 }}>
 
-      {/* Message thread */}
-      <div className="flex-1 overflow-y-auto space-y-4 pr-1 mb-4">
+      {/* Chat header */}
+      <div className="flex items-center justify-between px-5 py-4 border-b border-[#E4E8F0] bg-[#F8F9FB]">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl dna-gradient flex items-center justify-center">
+            <span className="text-white text-sm">🤖</span>
+          </div>
+          <div>
+            <p className="text-sm font-bold text-[#1B2B4B]">Creative Director</p>
+            <p className="text-xs text-[#8A99B3]">AI grounded in your DNA + brand brief</p>
+          </div>
+        </div>
+
+        {/* Direction focus pills */}
+        {directions.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] text-[#8A99B3] font-medium hidden sm:block">Focus:</span>
+            <button
+              onClick={() => setFocusIndex(null)}
+              className={[
+                'text-[10px] font-bold px-2.5 py-1 rounded-full transition-smooth',
+                focusIndex === null
+                  ? 'bg-[#1B2B4B] text-white'
+                  : 'bg-[#EEF1F7] text-[#5A6A85] hover:bg-[#E4E8F0]',
+              ].join(' ')}
+            >
+              All
+            </button>
+            {directions.map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setFocusIndex(i)}
+                className={[
+                  'text-[10px] font-bold px-2.5 py-1 rounded-full transition-smooth',
+                  focusIndex === i
+                    ? 'text-white'
+                    : 'bg-[#EEF1F7] text-[#5A6A85] hover:bg-[#E4E8F0]',
+                ].join(' ')}
+                style={focusIndex === i ? {
+                  background: ['#00C8D4', '#9B4FD8', '#FF6B35'][i],
+                } : {}}
+              >
+                D{i + 1}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
         {messages.length === 0 && (
-          <div className="text-center py-10 space-y-4">
-            <p className="text-zinc-500 text-sm">Ask anything about your content directions</p>
-            <div className="flex flex-wrap gap-2 justify-center">
-              {SUGGESTIONS.map((s) => (
+          <div className="flex flex-col items-center justify-center h-full py-8 space-y-5 animate-fade-in">
+            <div className="w-12 h-12 rounded-2xl dna-gradient flex items-center justify-center">
+              <span className="text-white text-xl">💬</span>
+            </div>
+            <div className="text-center space-y-1">
+              <p className="text-sm font-semibold text-[#1B2B4B]">Your Creative Director is ready</p>
+              <p className="text-xs text-[#8A99B3] max-w-xs">Ask for rewrites, alternative hooks, clarity on any direction, or scripting guidance.</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-md">
+              {SUGGESTIONS.map((s, i) => (
                 <button
-                  key={s}
-                  onClick={() => sendMessage(s)}
-                  className="text-xs px-3 py-1.5 rounded-full bg-zinc-800 border border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-500 transition-colors"
+                  key={i}
+                  onClick={() => sendMessage(s.text)}
+                  className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl border border-[#E4E8F0] bg-[#F8F9FB] hover:bg-[#EEF1F7] hover:border-[#C8D0E0] text-left transition-smooth text-xs text-[#5A6A85] hover:text-[#1B2B4B]"
                 >
-                  {s}
+                  <span className="flex-shrink-0">{s.icon}</span>
+                  <span>{s.text}</span>
                 </button>
               ))}
             </div>
@@ -153,12 +171,16 @@ export default function ChatInterface({ sessionId, directions, initialHistory = 
         )}
 
         {messages.map((msg, i) => (
-          <MessageBubble key={i} message={msg} isStreaming={isStreaming && i === messages.length - 1} />
+          <MessageBubble
+            key={i}
+            message={msg}
+            isStreaming={isStreaming && i === messages.length - 1}
+          />
         ))}
 
         {error && (
-          <div className="text-xs text-red-400 bg-red-900/20 border border-red-800 rounded-lg px-3 py-2">
-            {error}
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-100 bg-red-50 text-xs text-red-600">
+            <span>⚠</span> {error}
           </div>
         )}
 
@@ -166,69 +188,73 @@ export default function ChatInterface({ sessionId, directions, initialHistory = 
       </div>
 
       {/* Input */}
-      <div className="flex gap-2 items-end">
-        <textarea
-          ref={textareaRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          rows={2}
-          disabled={isStreaming}
-          placeholder="Ask about your script, request alternatives, get more clarity… (Enter to send)"
-          className="flex-1 bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3 text-sm text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-violet-500 resize-none disabled:opacity-50"
-        />
-        <button
-          onClick={() => sendMessage(input)}
-          disabled={isStreaming || !input.trim()}
-          className="h-[70px] px-4 bg-violet-600 hover:bg-violet-500 disabled:bg-violet-900 disabled:cursor-not-allowed text-white rounded-xl font-medium text-sm transition-colors flex-shrink-0"
-        >
-          {isStreaming ? (
-            <span className="flex flex-col items-center gap-1">
-              <span className="animate-spin text-lg">⟳</span>
-              <span className="text-xs">…</span>
-            </span>
-          ) : (
-            '↑ Send'
-          )}
-        </button>
+      <div className="px-4 py-3 border-t border-[#E4E8F0] bg-[#F8F9FB]">
+        <div className="flex gap-2 items-end">
+          <textarea
+            ref={textareaRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            rows={2}
+            disabled={isStreaming}
+            placeholder="Ask about your script, request alternatives, get more clarity… (⏎ to send)"
+            className="flex-1 border border-[#E4E8F0] rounded-xl px-4 py-2.5 text-sm text-[#1B2B4B] placeholder:text-[#C8D0E0] bg-white focus:outline-none focus:ring-2 focus:ring-[#00C8D4] focus:border-transparent resize-none disabled:opacity-50 transition-smooth"
+          />
+          <button
+            onClick={() => sendMessage(input)}
+            disabled={isStreaming || !input.trim()}
+            className="h-[66px] w-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-smooth disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ background: 'linear-gradient(135deg, #1B2B4B, #2D4169)' }}
+          >
+            {isStreaming ? (
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <span className="text-white text-base">↑</span>
+            )}
+          </button>
+        </div>
+        <p className="text-[10px] text-[#C8D0E0] mt-1.5 text-center">Shift + Enter for new line</p>
       </div>
     </div>
   )
 }
 
-// ─── Message Bubble ───────────────────────────────────────────────────────────
-
-function MessageBubble({
-  message,
-  isStreaming,
-}: {
-  message: ChatMessage
-  isStreaming: boolean
-}) {
+function MessageBubble({ message, isStreaming }: { message: ChatMessage; isStreaming: boolean }) {
   const isUser = message.role === 'user'
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex items-end gap-2.5 animate-slide-up ${isUser ? 'justify-end' : 'justify-start'}`}>
+      {!isUser && (
+        <div className="w-7 h-7 rounded-xl dna-gradient flex items-center justify-center flex-shrink-0 mb-0.5">
+          <span className="text-white text-xs">AI</span>
+        </div>
+      )}
       <div
         className={[
-          'max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed',
+          'max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed',
           isUser
-            ? 'bg-violet-600 text-white rounded-br-sm'
-            : 'bg-zinc-800 text-zinc-200 rounded-bl-sm border border-zinc-700',
+            ? 'rounded-br-sm text-white'
+            : 'rounded-bl-sm text-[#1B2B4B] border border-[#E4E8F0] bg-white shadow-sm',
         ].join(' ')}
+        style={isUser ? { background: 'linear-gradient(135deg, #1B2B4B, #2D4169)' } : {}}
       >
         {message.content ? (
           <p className="whitespace-pre-wrap">{message.content}</p>
         ) : (
           isStreaming && (
-            <span className="inline-flex gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:0ms]" />
-              <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:150ms]" />
-              <span className="w-1.5 h-1.5 rounded-full bg-zinc-400 animate-bounce [animation-delay:300ms]" />
+            <span className="inline-flex gap-1 items-center">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00C8D4] animate-bounce [animation-delay:0ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[#9B4FD8] animate-bounce [animation-delay:150ms]" />
+              <span className="w-1.5 h-1.5 rounded-full bg-[#FF6B35] animate-bounce [animation-delay:300ms]" />
             </span>
           )
         )}
       </div>
+      {isUser && (
+        <div className="w-7 h-7 rounded-xl bg-[#EEF1F7] border border-[#E4E8F0] flex items-center justify-center flex-shrink-0 mb-0.5">
+          <span className="text-[#1B2B4B] text-xs font-bold">You</span>
+        </div>
+      )}
     </div>
   )
 }
