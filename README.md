@@ -1,4 +1,4 @@
-CreatorDNA - IBM Bob Hackathon July Creative Industries Challenge
+### CreatorDNA - IBM Bob Hackathon July Creative Industries Challenge
 
 Problem: UGC content works with companies writing brand briefs that outline what a UGC ad must include, and UGC creators then create and sell the
 social media advertisement to these companies. However, these brand briefs are often extremely specific with many details, and UGC creators often 
@@ -24,7 +24,8 @@ analysis using the llava model.
 
 How IBM Bob was used: I used IBM Bob as my primary developer. I was responsible for ideation, feature implementation, and testing, while IBM Bob coded the frontend and backend.
 
-Architecture:
+### Architecture:
+```
                        ┌─────────────────────────┐
                        │  Target Media URL       │
                        │ (TikTok / Instagram)    │
@@ -79,6 +80,8 @@ Architecture:
                        │      strategist.ts      │
                        │ (UGC Scripts & Strategy)│
                        └─────────────────────────┘
+
+```
 
 Prerequisites & Setup
 
