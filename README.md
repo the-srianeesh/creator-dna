@@ -83,11 +83,11 @@ How IBM Bob was used: I used IBM Bob as my primary developer. I was responsible 
 
 ```
 
-Prerequisites & Setup
+### Prerequisites & Setup
 
 Because this application relies on local AI models and CLI tools rather than third-party cloud APIs, you must install the required system dependencies before running the app.
 
-### 1. Install System Dependencies (macOS)
+Install System Dependencies (macOS)
 
 ```bash
 # Install core CLI tools & OpenAI Whisper
@@ -95,6 +95,11 @@ brew install ffmpeg yt-dlp openai-whisper ollama
 
 # Pull required local multi-modal LLM
 ollama run llava
+```
+
+Optional: Override the default whisper binary path (/opt/homebrew/bin/whisper)
+```bash
+WHISPER_PYTHON=/path/to/your/whisper
 ```
 
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
